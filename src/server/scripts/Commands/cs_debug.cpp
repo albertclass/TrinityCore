@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -32,12 +32,12 @@ EndScriptData */
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "GossipDef.h"
+#include "M2Stores.h"
 #include "Transport.h"
 #include "Language.h"
 #include "MapManager.h"
 #include "MovementPackets.h"
 #include "SpellPackets.h"
-#include "ScenePackets.h"
 
 #include <fstream>
 #include <limits>
@@ -68,7 +68,6 @@ public:
             { "sellerror",     rbac::RBAC_PERM_COMMAND_DEBUG_SEND_SELLERROR,     false, &HandleDebugSendSellErrorCommand,       "" },
             { "setphaseshift", rbac::RBAC_PERM_COMMAND_DEBUG_SEND_SETPHASESHIFT, false, &HandleDebugSendSetPhaseShiftCommand,   "" },
             { "spellfail",     rbac::RBAC_PERM_COMMAND_DEBUG_SEND_SPELLFAIL,     false, &HandleDebugSendSpellFailCommand,       "" },
-            { "playscene",     rbac::RBAC_PERM_COMMAND_DEBUG_SEND_PLAYSCENE,     false, &HandleDebugSendPlaySceneCommand,       "" },
         };
         static std::vector<ChatCommand> debugCommandTable =
         {
@@ -76,15 +75,15 @@ public:
             { "threat",        rbac::RBAC_PERM_COMMAND_DEBUG_THREAT,        false, &HandleDebugThreatListCommand,       "" },
             { "hostil",        rbac::RBAC_PERM_COMMAND_DEBUG_HOSTIL,        false, &HandleDebugHostileRefListCommand,   "" },
             { "anim",          rbac::RBAC_PERM_COMMAND_DEBUG_ANIM,          false, &HandleDebugAnimCommand,             "" },
-            { "arena",         rbac::RBAC_PERM_COMMAND_DEBUG_ARENA,         false, &HandleDebugArenaCommand,            "" },
-            { "bg",            rbac::RBAC_PERM_COMMAND_DEBUG_BG,            false, &HandleDebugBattlegroundCommand,     "" },
+            { "arena",         rbac::RBAC_PERM_COMMAND_DEBUG_ARENA,         true,  &HandleDebugArenaCommand,            "" },
+            { "bg",            rbac::RBAC_PERM_COMMAND_DEBUG_BG,            true,  &HandleDebugBattlegroundCommand,     "" },
             { "getitemstate",  rbac::RBAC_PERM_COMMAND_DEBUG_GETITEMSTATE,  false, &HandleDebugGetItemStateCommand,     "" },
             { "lootrecipient", rbac::RBAC_PERM_COMMAND_DEBUG_LOOTRECIPIENT, false, &HandleDebugGetLootRecipientCommand, "" },
             { "getvalue",      rbac::RBAC_PERM_COMMAND_DEBUG_GETVALUE,      false, &HandleDebugGetValueCommand,         "" },
             { "getitemvalue",  rbac::RBAC_PERM_COMMAND_DEBUG_GETITEMVALUE,  false, &HandleDebugGetItemValueCommand,     "" },
             { "Mod32Value",    rbac::RBAC_PERM_COMMAND_DEBUG_MOD32VALUE,    false, &HandleDebugMod32ValueCommand,       "" },
-            { "play",          rbac::RBAC_PERM_COMMAND_DEBUG_PLAY,          false, NULL,              "", debugPlayCommandTable },
-            { "send",          rbac::RBAC_PERM_COMMAND_DEBUG_SEND,          false, NULL,              "", debugSendCommandTable },
+            { "play",          rbac::RBAC_PERM_COMMAND_DEBUG_PLAY,          false, nullptr,                             "", debugPlayCommandTable },
+            { "send",          rbac::RBAC_PERM_COMMAND_DEBUG_SEND,          false, nullptr,                             "", debugSendCommandTable },
             { "setaurastate",  rbac::RBAC_PERM_COMMAND_DEBUG_SETAURASTATE,  false, &HandleDebugSetAuraStateCommand,     "" },
             { "setitemvalue",  rbac::RBAC_PERM_COMMAND_DEBUG_SETITEMVALUE,  false, &HandleDebugSetItemValueCommand,     "" },
             { "setvalue",      rbac::RBAC_PERM_COMMAND_DEBUG_SETVALUE,      false, &HandleDebugSetValueCommand,         "" },
@@ -106,8 +105,8 @@ public:
         };
         static std::vector<ChatCommand> commandTable =
         {
-            { "debug",         rbac::RBAC_PERM_COMMAND_DEBUG,   true,  NULL,               "", debugCommandTable },
-            { "wpgps",         rbac::RBAC_PERM_COMMAND_WPGPS,  false, &HandleWPGPSCommand, "" },
+            { "debug",         rbac::RBAC_PERM_COMMAND_DEBUG,               true,  nullptr,                             "", debugCommandTable },
+            { "wpgps",         rbac::RBAC_PERM_COMMAND_WPGPS,               false, &HandleWPGPSCommand,                 "" },
         };
         return commandTable;
     }
@@ -125,11 +124,25 @@ public:
 
         uint32 id = atoi((char*)args);
 
-        if (!sCinematicSequencesStore.LookupEntry(id))
+        CinematicSequencesEntry const* cineSeq = sCinematicSequencesStore.LookupEntry(id);
+        if (!cineSeq)
         {
             handler->PSendSysMessage(LANG_CINEMATIC_NOT_EXIST, id);
             handler->SetSentErrorMessage(true);
             return false;
+        }
+
+        // Dump camera locations
+        if (std::vector<FlyByCamera> const* flyByCameras = GetFlyByCameras(cineSeq->Camera[0]))
+        {
+            handler->PSendSysMessage("Waypoints for sequence %u, camera %u", id, cineSeq->Camera[0]);
+            uint32 count = 1;
+            for (FlyByCamera const& cam : *flyByCameras)
+            {
+                handler->PSendSysMessage("%02u - %7ums [%f, %f, %f] Facing %f (%f degrees)", count, cam.timeStamp, cam.locations.x, cam.locations.y, cam.locations.z, cam.locations.w, cam.locations.w * (180 / M_PI));
+                count++;
+            }
+            handler->PSendSysMessage(SZFMTD " waypoints dumped", flyByCameras->size());
         }
 
         handler->GetSession()->GetPlayer()->SendCinematicStart(id);
@@ -1479,49 +1492,6 @@ public:
             handler->PSendSysMessage("Target's current phases: %s", phases.str().c_str());
         else
             handler->SendSysMessage("Target is not phased");
-        return true;
-    }
-
-    static bool HandleDebugSendPlaySceneCommand(ChatHandler* handler, char const* args)
-    {
-        if (!*args)
-            return false;
-
-        int32 sceneID = 0;
-        int32 playbackFlags = 0;
-        int32 sceneInstanceID = 0;
-        int32 sceneScriptPackageID = 0;
-
-        char* a = strtok((char*)args, " ");
-        char* b = strtok(NULL, " ");
-        char* c = strtok(NULL, " ");
-        char* d = strtok(NULL, " ");
-
-        if (!a || !b || !c || !d)
-            return false;
-
-        if (a)
-            sceneID = atoi(a);
-        if (b)
-            playbackFlags = atoi(b);
-        if (c)
-            sceneInstanceID = atoi(c);
-        if (d)
-            sceneScriptPackageID = atoi(d);
-
-        Player* me = handler->GetSession()->GetPlayer();
-
-        WorldPackets::Scenes::PlayScene packet;
-        packet.SceneID = sceneID;
-        packet.PlaybackFlags = playbackFlags;
-        packet.SceneInstanceID = sceneInstanceID;
-        packet.SceneScriptPackageID = sceneScriptPackageID;
-        packet.TransportGUID = me->GetTransGUID();
-        packet.Location = me->GetPosition();
-        handler->GetSession()->SendPacket(packet.Write(), true);
-
-        TC_LOG_DEBUG("network", "Sent SMSG_PLAY_SCENE to %s, SceneID: %d, PlaybackFlags: %d, SceneInstanceID: %d, SceneScriptPackageID: %d", me->GetName().c_str(), sceneID, playbackFlags, sceneInstanceID, sceneScriptPackageID);
-
         return true;
     }
 

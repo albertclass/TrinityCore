@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -249,45 +249,6 @@ WorldPacket const* WorldPackets::Query::QueryNPCTextResponse::Write()
             _worldPacket << Probabilities[i];
         for (uint32 i = 0; i < MAX_NPC_TEXT_OPTIONS; ++i)
             _worldPacket << BroadcastTextID[i];
-    }
-
-    return &_worldPacket;
-}
-
-void WorldPackets::Query::DBQueryBulk::Read()
-{
-    _worldPacket >> TableHash;
-
-    uint32 count = _worldPacket.ReadBits(13);
-
-    Queries.resize(count);
-    for (uint32 i = 0; i < count; ++i)
-    {
-        _worldPacket >> Queries[i].GUID;
-        _worldPacket >> Queries[i].RecordID;
-    }
-}
-
-WorldPacket const* WorldPackets::Query::DBReply::Write()
-{
-    _worldPacket << uint32(TableHash);
-    _worldPacket << uint32(RecordID);
-    _worldPacket << uint32(Timestamp);
-    _worldPacket.WriteBit(Allow);
-    _worldPacket << uint32(Data.size());
-    _worldPacket.append(Data);
-
-    return &_worldPacket;
-}
-
-WorldPacket const* WorldPackets::Query::HotfixNotifyBlob::Write()
-{
-    _worldPacket << uint32(Hotfixes->size());
-    for (HotfixNotify const& hotfix : *Hotfixes)
-    {
-        _worldPacket << uint32(hotfix.TableHash);
-        _worldPacket << int32(hotfix.Entry);
-        _worldPacket << uint32(hotfix.Timestamp);
     }
 
     return &_worldPacket;

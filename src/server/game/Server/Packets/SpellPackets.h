@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -248,6 +248,7 @@ namespace WorldPackets
         {
             uint32 Type = 0;
             int16 PlayerLevelDelta = 0;
+            uint16 PlayerItemLevel = 0;
             uint8 TargetLevel = 0;
             uint8 Expansion = 0;
             uint8 Class = 1;
@@ -265,13 +266,13 @@ namespace WorldPackets
             uint32 ActiveFlags = 0;
             uint16 CastLevel = 1;
             uint8 Applications = 1;
+            Optional<SandboxScalingData> SandboxScaling;
             Optional<ObjectGuid> CastUnit;
             Optional<int32> Duration;
             Optional<int32> Remaining;
             Optional<float> TimeMod;
             std::vector<float> Points;
             std::vector<float> EstimatedPoints;
-            Optional<SandboxScalingData> SandboxScaling;
         };
 
         struct AuraInfo
@@ -504,7 +505,7 @@ namespace WorldPackets
 
             ObjectGuid CasterUnit;
             uint32 SpellID  = 0;
-            uint32 SpelXSpellVisualID = 0;
+            uint32 SpellXSpellVisualID = 0;
             uint16 Reason   = 0;
             ObjectGuid CastID;
         };
@@ -518,7 +519,7 @@ namespace WorldPackets
 
             ObjectGuid CasterUnit;
             uint32 SpellID  = 0;
-            uint32 SpelXSpellVisualID = 0;
+            uint32 SpellXSpellVisualID = 0;
             uint8 Reason    = 0;
             ObjectGuid CastID;
         };
@@ -639,6 +640,7 @@ namespace WorldPackets
 
             uint32 SrecID = 0;
             uint32 ForcedCooldown = 0;
+            float ModRate = 1.0f;
         };
 
         class SpellCooldown : public ServerPacket
@@ -660,6 +662,7 @@ namespace WorldPackets
             uint32 Category = 0;
             int32 RecoveryTime = 0;
             int32 CategoryRecoveryTime = 0;
+            float ModRate = 1.0f;
             bool OnHold = false;
             Optional<uint32> unused622_1;   ///< This field is not used for anything in the client in 6.2.2.20444
             Optional<uint32> unused622_2;   ///< This field is not used for anything in the client in 6.2.2.20444
@@ -707,12 +710,14 @@ namespace WorldPackets
             uint32 Category = 0;
             uint32 NextRecoveryTime = 0;
             uint8 ConsumedCharges = 0;
+            float ChargeModRate = 1.0f;
         };
 
         struct SpellChargeEntry
         {
             uint32 Category = 0;
             uint32 NextRecoveryTime = 0;
+            float ChargeModRate = 1.0f;
             uint8 ConsumedCharges = 0;
         };
 
@@ -755,6 +760,24 @@ namespace WorldPackets
 
             ObjectGuid Source;
             int32 SpellVisualID = 0;
+        };
+
+        class TC_GAME_API PlaySpellVisual final : public ServerPacket
+        {
+        public:
+            PlaySpellVisual() : ServerPacket(SMSG_PLAY_SPELL_VISUAL, 16 + 16 + 2 + 4 + 1 + 2 + 4 + 4 * 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Source;
+            ObjectGuid Target;
+            uint16 MissReason = 0;
+            uint32 SpellVisualID = 0;
+            bool SpeedAsTime = false;
+            uint16 ReflectStatus = 0;
+            float TravelSpeed = 0.0f;
+            G3D::Vector3 TargetPostion;
+            float Orientation = 0.0f;
         };
 
         class PlaySpellVisualKit final : public ServerPacket
@@ -812,6 +835,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             int32 SpellID = 0;
+            int32 SpellXSpellVisualID = 0;
             Optional<SpellChannelStartInterruptImmunities> InterruptImmunities;
             ObjectGuid CasterGUID;
             Optional<SpellTargetedHealPrediction> HealPrediction;
@@ -993,6 +1017,17 @@ namespace WorldPackets
             ObjectGuid VictimGUID;
             uint32 SpellID = 0;
             std::vector<int32> FailedSpells;
+        };
+
+        class CustomLoadScreen final : public ServerPacket
+        {
+        public:
+            CustomLoadScreen(uint32 teleportSpellId, uint32 loadingScreenId) : ServerPacket(SMSG_CUSTOM_LOAD_SCREEN), TeleportSpellID(teleportSpellId), LoadingScreenID(loadingScreenId) { }
+
+            WorldPacket const* Write() override;
+
+            uint32 TeleportSpellID;
+            uint32 LoadingScreenID;
         };
     }
 }

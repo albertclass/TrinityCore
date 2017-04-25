@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -174,47 +174,6 @@ namespace WorldPackets
             bool Allow = false;
             float Probabilities[MAX_NPC_TEXT_OPTIONS];
             uint32 BroadcastTextID[MAX_NPC_TEXT_OPTIONS];
-        };
-
-        class DBQueryBulk final : public ClientPacket
-        {
-        public:
-            struct DBQueryRecord
-            {
-                ObjectGuid GUID;
-                uint32 RecordID = 0;
-            };
-
-            DBQueryBulk(WorldPacket&& packet) : ClientPacket(CMSG_DB_QUERY_BULK, std::move(packet)) { }
-
-            void Read() override;
-
-            uint32 TableHash = 0;
-            std::vector<DBQueryRecord> Queries;
-        };
-
-        class DBReply final : public ServerPacket
-        {
-        public:
-            DBReply() : ServerPacket(SMSG_DB_REPLY, 12) { }
-
-            WorldPacket const* Write() override;
-
-            uint32 TableHash = 0;
-            uint32 Timestamp = 0;
-            uint32 RecordID = 0;
-            bool Allow = false;
-            ByteBuffer Data;
-        };
-
-        class HotfixNotifyBlob final : public ServerPacket
-        {
-        public:
-            HotfixNotifyBlob() : ServerPacket(SMSG_HOTFIX_NOTIFY_BLOB, 4) { }
-
-            WorldPacket const* Write() override;
-
-            HotfixData const* Hotfixes = nullptr;
         };
 
         class QueryGameObject final : public ClientPacket
